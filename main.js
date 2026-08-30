@@ -1,23 +1,35 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "@supabase/supabase-js";
 import {
   Html5Qrcode,
   Html5QrcodeSupportedFormats
-} from "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm";
+} from "html5-qrcode";
 
 const SUPABASE_URL = "https://rellsmuqjhcfhenjkbxa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_PRT5-T0k-_AiSvy6lrJV-g_r7wLQjRk";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
 const app = document.getElementById("app");
 
 let profile = null;
 let shop = null;
 let scanner = null;
-let scannerLocked = false;
+let scannerStarting = false;
+let scannerClosing = false;
+let barcodeDetected = false;
+
+
+/* =========================
+   HELPERS
+========================= */
 
 function money(value) {
-  return new Intl.NumberFormat("fa-IR").format(Number(value || 0));
+  return new Intl.NumberFormat("fa-IR").format(
+    Number(value || 0)
+  );
 }
 
 function escapeHTML(value) {
@@ -33,13 +45,20 @@ function toast(message, error = false) {
   document.querySelector(".toast")?.remove();
 
   const box = document.createElement("div");
-  box.className = error ? "toast toast-error" : "toast";
+
+  box.className = error
+    ? "toast toast-error"
+    : "toast";
+
   box.textContent = message;
 
   document.body.appendChild(box);
 
-  setTimeout(() => box.remove(), 3000);
+  setTimeout(() => {
+    box.remove();
+  }, 3000);
 }
+
 
 /* =========================
    LOGIN
@@ -102,6 +121,7 @@ function showLogin() {
     .getElementById("loginForm")
     .addEventListener("submit", login);
 }
+
 
 async function login(event) {
   event.preventDefault();
@@ -178,6 +198,7 @@ async function login(event) {
       "خطا در ورود به سیستم.";
   }
 }
+
 
 /* =========================
    USER
@@ -272,6 +293,7 @@ async function loadUser() {
   }
 }
 
+
 /* =========================
    LAYOUT
 ========================= */
@@ -354,8 +376,9 @@ function layout(content, activePage = "sale") {
 
   document.getElementById("logoutButton").onclick = logout;
 
-  document.getElementById("inventoryButton").onclick =
-    showReceive;
+  document
+    .getElementById("inventoryButton")
+    .onclick = showReceive;
 
   document
     .querySelectorAll("[data-page]")
@@ -383,6 +406,7 @@ function layout(content, activePage = "sale") {
     });
 }
 
+
 /* =========================
    LOGOUT
 ========================= */
@@ -398,11 +422,14 @@ async function logout() {
   showLogin();
 }
 
+
 /* =========================
    SALE
 ========================= */
 
 function showHome() {
+  closeScanner();
+
   layout(`
     <section class="welcome">
 
@@ -428,7 +455,6 @@ function showHome() {
         class="scan-button"
       >
         📷
-
         <small>
           اسکن بارکد
         </small>
@@ -498,16 +524,13 @@ function showHome() {
 
   document
     .getElementById("saleBarcode")
-    .addEventListener(
-      "keydown",
-      event => {
+    .addEventListener("keydown", event => {
 
-        if (event.key === "Enter") {
-          searchProduct("sale");
-        }
-
+      if (event.key === "Enter") {
+        searchProduct("sale");
       }
-    );
+
+    });
 
   document
     .getElementById("scanSale")
@@ -516,18 +539,15 @@ function showHome() {
 
   document
     .getElementById("closeSaleScanner")
-    .onclick =
-      closeScanner;
+    .onclick = closeScanner;
 }
+
 
 /* =========================
    PRODUCT SEARCH
 ========================= */
 
-async function searchProduct(
-  mode,
-  barcode = null
-) {
+async function searchProduct(mode, barcode = null) {
 
   const input =
     document.getElementById(
@@ -560,14 +580,8 @@ async function searchProduct(
         price1,
         price2
       `)
-      .eq(
-        "shop_id",
-        shop.id
-      )
-      .eq(
-        "barcode",
-        code
-      )
+      .eq("shop_id", shop.id)
+      .eq("barcode", code)
       .maybeSingle();
 
   if (error) {
@@ -602,6 +616,7 @@ async function searchProduct(
   }
 }
 
+
 /* =========================
    SALE PRODUCT
 ========================= */
@@ -609,9 +624,7 @@ async function searchProduct(
 function showSaleProduct(product) {
 
   const result =
-    document.getElementById(
-      "saleResult"
-    );
+    document.getElementById("saleResult");
 
   const prices = [];
 
@@ -707,15 +720,10 @@ function showSaleProduct(product) {
         document
           .querySelectorAll(".price-option")
           .forEach(b =>
-            b.classList.remove(
-              "selected"
-            )
+            b.classList.remove("selected")
           );
 
-        button.classList.add(
-          "selected"
-        );
-
+        button.classList.add("selected");
       };
 
     });
@@ -762,9 +770,7 @@ function showSaleProduct(product) {
         return;
       }
 
-      if (
-        quantity > product.stock
-      ) {
+      if (quantity > product.stock) {
         toast(
           "موجودی کافی نیست.",
           true
@@ -777,14 +783,9 @@ function showSaleProduct(product) {
         await supabase.rpc(
           "register_sale",
           {
-            p_product_id:
-              product.id,
-
-            p_qty:
-              quantity,
-
-            p_unit_price:
-              price
+            p_product_id: product.id,
+            p_qty: quantity,
+            p_unit_price: price
           }
         );
 
@@ -808,14 +809,16 @@ function showSaleProduct(product) {
     };
 }
 
+
 /* =========================
    RECEIVE
 ========================= */
 
 function showReceive() {
 
-  layout(`
+  closeScanner();
 
+  layout(`
     <section class="welcome">
 
       <div>
@@ -840,7 +843,6 @@ function showReceive() {
         class="scan-button"
       >
         📷
-
         <small>
           اسکن بارکد
         </small>
@@ -901,7 +903,6 @@ function showReceive() {
       ></div>
 
     </section>
-
   `, "receive");
 
   document
@@ -911,16 +912,13 @@ function showReceive() {
 
   document
     .getElementById("receiveBarcode")
-    .addEventListener(
-      "keydown",
-      event => {
+    .addEventListener("keydown", event => {
 
-        if (event.key === "Enter") {
-          searchProduct("receive");
-        }
-
+      if (event.key === "Enter") {
+        searchProduct("receive");
       }
-    );
+
+    });
 
   document
     .getElementById("scanReceive")
@@ -928,12 +926,10 @@ function showReceive() {
       openScanner("receive");
 
   document
-    .getElementById(
-      "closeReceiveScanner"
-    )
-    .onclick =
-      closeScanner;
+    .getElementById("closeReceiveScanner")
+    .onclick = closeScanner;
 }
+
 
 /* =========================
    EXISTING PRODUCT
@@ -942,9 +938,7 @@ function showReceive() {
 function showReceiveProduct(product) {
 
   const result =
-    document.getElementById(
-      "receiveResult"
-    );
+    document.getElementById("receiveResult");
 
   result.innerHTML = `
     <div class="product-box">
@@ -1055,17 +1049,10 @@ function showReceiveProduct(product) {
         await supabase.rpc(
           "receive_stock",
           {
-            p_product_id:
-              product.id,
-
-            p_qty:
-              quantity,
-
-            p_price1:
-              price1,
-
-            p_price2:
-              price2
+            p_product_id: product.id,
+            p_qty: quantity,
+            p_price1: price1,
+            p_price2: price2
           }
         );
 
@@ -1088,6 +1075,7 @@ function showReceiveProduct(product) {
     };
 }
 
+
 /* =========================
    NEW PRODUCT
 ========================= */
@@ -1095,9 +1083,7 @@ function showReceiveProduct(product) {
 function showNewProduct(barcode) {
 
   const result =
-    document.getElementById(
-      "receiveResult"
-    );
+    document.getElementById("receiveResult");
 
   result.innerHTML = `
     <div class="product-box">
@@ -1172,9 +1158,7 @@ function showNewProduct(barcode) {
 
       const name =
         document
-          .getElementById(
-            "newProductName"
-          )
+          .getElementById("newProductName")
           .value
           .trim();
 
@@ -1219,20 +1203,11 @@ function showNewProduct(barcode) {
         await supabase.rpc(
           "create_product_with_stock",
           {
-            p_barcode:
-              barcode,
-
-            p_name:
-              name,
-
-            p_qty:
-              quantity,
-
-            p_price1:
-              price1,
-
-            p_price2:
-              price2
+            p_barcode: barcode,
+            p_name: name,
+            p_qty: quantity,
+            p_price1: price1,
+            p_price2: price2
           }
         );
 
@@ -1255,11 +1230,14 @@ function showNewProduct(barcode) {
     };
 }
 
+
 /* =========================
    INVENTORY
 ========================= */
 
 async function showInventory() {
+
+  await closeScanner();
 
   layout(`
     <section class="card">
@@ -1300,10 +1278,7 @@ async function showInventory() {
         price1,
         price2
       `)
-      .eq(
-        "shop_id",
-        shop.id
-      )
+      .eq("shop_id", shop.id)
       .order("name");
 
   const list =
@@ -1328,65 +1303,62 @@ async function showInventory() {
   }
 
   list.innerHTML =
-    data
-      .map(product => `
-        <div class="inventory-item">
+    data.map(product => `
+      <div class="inventory-item">
 
-          <div>
+        <div>
 
-            <strong>
-              ${escapeHTML(
-                product.name
-              )}
-            </strong>
+          <strong>
+            ${escapeHTML(product.name)}
+          </strong>
 
-            <small>
-              ${escapeHTML(
-                product.barcode
-              )}
-            </small>
-
-          </div>
-
-          <div class="stock">
-            موجودی:
-            ${money(product.stock)}
-          </div>
-
-          <div class="prices">
-
-            ${money(product.price1)}
-
-            ${
-              product.price2 !== null
-                ? `
-                  <br>
-                  ${money(
-                    product.price2
-                  )}
-                `
-                : ""
-            }
-
-          </div>
+          <small>
+            ${escapeHTML(product.barcode)}
+          </small>
 
         </div>
-      `)
-      .join("");
+
+        <div class="stock">
+          موجودی:
+          ${money(product.stock)}
+        </div>
+
+        <div class="prices">
+
+          ${money(product.price1)}
+
+          ${
+            product.price2 !== null
+              ? `
+                <br>
+                ${money(product.price2)}
+              `
+              : ""
+          }
+
+        </div>
+
+      </div>
+    `).join("");
 
   document
-    .getElementById(
-      "refreshInventory"
-    )
-    .onclick =
-      showInventory;
+    .getElementById("refreshInventory")
+    .onclick = showInventory;
 }
+
 
 /* =========================
    BARCODE SCANNER
 ========================= */
 
 async function openScanner(mode) {
+
+  if (scannerStarting) {
+    return;
+  }
+
+  scannerStarting = true;
+  barcodeDetected = false;
 
   const section =
     document.getElementById(
@@ -1396,18 +1368,11 @@ async function openScanner(mode) {
     );
 
   if (!section) {
+    scannerStarting = false;
     return;
   }
 
-  if (scanner) {
-    await closeScanner();
-  }
-
-  scannerLocked = false;
-
-  section.classList.remove(
-    "hidden"
-  );
+  section.classList.remove("hidden");
 
   const readerId =
     mode === "sale"
@@ -1415,141 +1380,77 @@ async function openScanner(mode) {
       : "receive-reader";
 
   const reader =
-    document.getElementById(
-      readerId
-    );
+    document.getElementById(readerId);
 
   if (!reader) {
+    scannerStarting = false;
     return;
   }
 
+  await closeScanner();
+
   reader.innerHTML = "";
+
+  scanner =
+    new Html5Qrcode(readerId);
+
+  const formatsToSupport = [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.ITF
+  ];
+
+  const config = {
+    fps: 15,
+
+    qrbox: {
+      width: 300,
+      height: 120
+    },
+
+    aspectRatio: 1.7777778,
+
+    formatsToSupport
+  };
 
   try {
 
-    /*
-      دریافت دوربین‌های گوشی
-    */
-
-    const cameras =
-      await Html5Qrcode.getCameras();
-
-    if (
-      !cameras ||
-      cameras.length === 0
-    ) {
-
-      toast(
-        "هیچ دوربینی پیدا نشد.",
-        true
-      );
-
-      section.classList.add(
-        "hidden"
-      );
-
-      return;
-    }
+    toast("در حال باز کردن دوربین...");
 
     /*
-      انتخاب دوربین پشت
-    */
-
-    let cameraId =
-      cameras[0].id;
-
-    const backCamera =
-      cameras.find(camera => {
-
-        const label =
-          String(
-            camera.label || ""
-          ).toLowerCase();
-
-        return (
-          label.includes("back") ||
-          label.includes("rear") ||
-          label.includes("environment") ||
-          label.includes("facing back") ||
-          label.includes("پشت")
-        );
-
-      });
-
-    if (backCamera) {
-      cameraId =
-        backCamera.id;
-    }
-
-    /*
-      ساخت اسکنر
-    */
-
-    scanner =
-      new Html5Qrcode(
-        readerId
-      );
-
-    /*
-      شروع دوربین
+      روش اول:
+      دوربین پشت گوشی
     */
 
     await scanner.start(
-      cameraId,
       {
-        fps: 15,
-
-        qrbox: {
-          width: 300,
-          height: 150
-        },
-
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.ITF
-        ],
-
-        disableFlip: true
+        facingMode: {
+          exact: "environment"
+        }
       },
-
-      /*
-        بارکد شناسایی شد
-      */
-
+      config,
       async decodedText => {
 
-        if (scannerLocked) {
+        if (barcodeDetected) {
           return;
         }
 
-        scannerLocked = true;
+        barcodeDetected = true;
 
         const code =
-          String(
-            decodedText || ""
-          ).trim();
+          String(decodedText).trim();
 
-        if (!code) {
-
-          scannerLocked = false;
-
-          return;
-        }
-
-        /*
-          توقف دوربین
-        */
+        console.log(
+          "BARCODE:",
+          code
+        );
 
         await closeScanner();
-
-        /*
-          قرار دادن بارکد در فیلد
-        */
 
         const input =
           document.getElementById(
@@ -1559,96 +1460,152 @@ async function openScanner(mode) {
           );
 
         if (input) {
-
-          input.value =
-            code;
-
-          input.focus();
-
+          input.value = code;
         }
 
-        /*
-          جستجوی خودکار کالا
-        */
+        toast(
+          "بارکد خوانده شد: " + code
+        );
 
         await searchProduct(
           mode,
           code
         );
-
       },
-
-      /*
-        خطاهای لحظه‌ای
-      */
-
-      () => {}
-
+      () => {
+        // خطاهای لحظه‌ای اسکن نادیده گرفته می‌شوند
+      }
     );
 
   } catch (error) {
 
-    console.error(
-      "Camera error:",
+    console.warn(
+      "Environment camera failed:",
       error
     );
 
-    const message =
-      String(
-        error?.message ||
-        error ||
-        ""
-      ).toLowerCase();
+    /*
+      اگر exact environment جواب نداد،
+      دوباره بدون exact امتحان می‌کنیم.
+    */
 
-    await closeScanner();
+    try {
 
-    if (
-      message.includes(
-        "permission"
-      ) ||
-      message.includes(
-        "notallowed"
-      )
-    ) {
+      await closeScanner();
 
-      toast(
-        "اجازه دسترسی به دوربین داده نشده است.",
-        true
+      reader.innerHTML = "";
+
+      scanner =
+        new Html5Qrcode(readerId);
+
+      await scanner.start(
+        {
+          facingMode: "environment"
+        },
+        config,
+        async decodedText => {
+
+          if (barcodeDetected) {
+            return;
+          }
+
+          barcodeDetected = true;
+
+          const code =
+            String(decodedText).trim();
+
+          console.log(
+            "BARCODE:",
+            code
+          );
+
+          await closeScanner();
+
+          const input =
+            document.getElementById(
+              mode === "sale"
+                ? "saleBarcode"
+                : "receiveBarcode"
+            );
+
+          if (input) {
+            input.value = code;
+          }
+
+          toast(
+            "بارکد خوانده شد: " + code
+          );
+
+          await searchProduct(
+            mode,
+            code
+          );
+        },
+        () => {}
       );
 
-    } else if (
-      message.includes(
-        "notreadable"
-      )
-    ) {
+    } catch (secondError) {
 
-      toast(
-        "دوربین توسط برنامه دیگری در حال استفاده است.",
-        true
+      console.error(
+        "Camera error:",
+        secondError
       );
 
-    } else if (
-      message.includes(
-        "overconstrained"
-      )
-    ) {
+      await closeScanner();
+
+      let message =
+        "دوربین باز نشد.";
+
+      if (
+        secondError?.name ===
+        "NotAllowedError"
+      ) {
+        message =
+          "اجازه استفاده از دوربین توسط مرورگر داده نشده است.";
+      }
+
+      else if (
+        secondError?.name ===
+        "NotFoundError"
+      ) {
+        message =
+          "دوربین روی این دستگاه پیدا نشد.";
+      }
+
+      else if (
+        secondError?.name ===
+        "NotReadableError"
+      ) {
+        message =
+          "دوربین در حال استفاده توسط برنامه دیگری است.";
+      }
+
+      else if (
+        secondError?.name ===
+        "SecurityError"
+      ) {
+        message =
+          "مرورگر اجازه دسترسی به دوربین را نمی‌دهد.";
+      }
+
+      else if (
+        secondError?.message
+      ) {
+        message =
+          "خطای دوربین: " +
+          secondError.message;
+      }
 
       toast(
-        "انتخاب دوربین پشت ناموفق بود.",
+        message,
         true
       );
-
-    } else {
-
-      toast(
-        "دوربین باز نشد. دوباره تلاش کن.",
-        true
-      );
-
     }
-
   }
+
+  scannerStarting = false;
 }
+
 
 /* =========================
    CLOSE SCANNER
@@ -1656,7 +1613,9 @@ async function openScanner(mode) {
 
 async function closeScanner() {
 
-  scannerLocked = true;
+  if (scannerClosing) {
+    return;
+  }
 
   if (!scanner) {
 
@@ -1666,27 +1625,36 @@ async function closeScanner() {
         reader.innerHTML = "";
       });
 
-    document
-      .getElementById("saleScanner")
-      ?.classList.add("hidden");
-
-    document
-      .getElementById("receiveScanner")
-      ?.classList.add("hidden");
-
     return;
   }
 
+  scannerClosing = true;
+
+  const currentScanner =
+    scanner;
+
+  scanner = null;
+
   try {
 
-    if (scanner.isScanning) {
-      await scanner.stop();
+    if (
+      currentScanner.getState &&
+      currentScanner.getState() !== 1
+    ) {
+      try {
+        await currentScanner.stop();
+      } catch (error) {
+        console.warn(
+          "Scanner stop:",
+          error
+        );
+      }
     }
 
   } catch (error) {
 
     console.warn(
-      "Scanner stop:",
+      "Scanner close:",
       error
     );
 
@@ -1694,7 +1662,7 @@ async function closeScanner() {
 
   try {
 
-    await scanner.clear();
+    await currentScanner.clear();
 
   } catch (error) {
 
@@ -1705,22 +1673,16 @@ async function closeScanner() {
 
   }
 
-  scanner = null;
-
   document
     .querySelectorAll(".reader")
     .forEach(reader => {
       reader.innerHTML = "";
     });
 
-  document
-    .getElementById("saleScanner")
-    ?.classList.add("hidden");
-
-  document
-    .getElementById("receiveScanner")
-    ?.classList.add("hidden");
+  barcodeDetected = false;
+  scannerClosing = false;
 }
+
 
 /* =========================
    START
@@ -1728,34 +1690,41 @@ async function closeScanner() {
 
 async function startApp() {
 
-  const {
-    data,
-    error
-  } =
-    await supabase.auth.getSession();
+  try {
 
-  if (error) {
+    const {
+      data,
+      error
+    } = await supabase.auth.getSession();
 
-    console.error(error);
+    if (error) {
+      console.error(error);
+
+      showLogin();
+
+      return;
+    }
+
+    if (data?.session) {
+      await loadUser();
+    } else {
+      showLogin();
+    }
+
+  } catch (error) {
+
+    console.error(
+      "START APP ERROR:",
+      error
+    );
 
     showLogin();
-
-    return;
-  }
-
-  if (data?.session) {
-
-    await loadUser();
-
-  } else {
-
-    showLogin();
-
   }
 }
 
-startApp();محرمانه!
-خرید از
-توسعه تجارت و فناوری
-مبلغ 4,047,000
-رمز پویا 71044
+
+/* =========================
+   RUN
+========================= */
+
+startApp();
