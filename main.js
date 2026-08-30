@@ -1,6 +1,8 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { Html5Qrcode } from "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm";
-
+import {
+  Html5Qrcode,
+  Html5QrcodeSupportedFormats
+} from "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/+esm";
 const SUPABASE_URL = "https://rellsmuqjhcfhenjkbxa.supabase.co";
 const SUPABASE_KEY = "sb_publishable_PRT5-T0k-_AiSvy6lrJV-g_r7wLQjRk";
 
@@ -1301,10 +1303,12 @@ async function showInventory() {
     .getElementById("refreshInventory")
     .onclick = showInventory;
 }
-
 /* =========================
    SCANNER
 ========================= */
+
+let scanner = null;
+let scannerLocked = false;
 
 async function openScanner(mode) {
 
@@ -1319,6 +1323,8 @@ async function openScanner(mode) {
     return;
   }
 
+  scannerLocked = false;
+
   section.classList.remove("hidden");
 
   const readerId =
@@ -1326,31 +1332,103 @@ async function openScanner(mode) {
       ? "sale-reader"
       : "receive-reader";
 
+  /*
+    اگر اسکنر قبلی باز باشد،
+    اول آن را کامل می‌بندیم.
+  */
+
   if (scanner) {
     await closeScanner();
   }
 
-  scanner =
-    new Html5Qrcode(readerId);
+  /*
+    ساخت اسکنر جدید
+  */
+
+  scanner = new Html5Qrcode(readerId);
 
   try {
 
     await scanner.start(
       {
-        facingMode: "environment"
-      },
-      {
-        fps: 10,
-        qrbox: {
-          width: 280,
-          height: 140
+        facingMode: {
+          ideal: "environment"
         }
       },
+      {
+        /*
+          سرعت اسکن
+        */
+
+        fps: 15,
+
+        /*
+          محدوده‌ای که کاربر باید
+          بارکد را داخل آن قرار دهد.
+        */
+
+        qrbox: {
+          width: 300,
+          height: 150
+        },
+
+        /*
+          بارکدهایی که سیستم فروشگاهی
+          معمولاً استفاده می‌کند.
+        */
+
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+
+        /*
+          برای بارکد معمولی
+          نیازی به برعکس کردن تصویر نیست.
+        */
+
+        disableFlip: true
+      },
+
+      /*
+        موفقیت در تشخیص بارکد
+      */
+
       async decodedText => {
 
-        const code = decodedText;
+        /*
+          جلوگیری از چند بار
+          اجرا شدن callback
+        */
+
+        if (scannerLocked) {
+          return;
+        }
+
+        scannerLocked = true;
+
+        const code =
+          String(decodedText || "").trim();
+
+        if (!code) {
+          scannerLocked = false;
+          return;
+        }
+
+        /*
+          دوربین را سریع متوقف می‌کنیم.
+        */
 
         await closeScanner();
+
+        /*
+          قرار دادن بارکد داخل فیلد
+        */
 
         const input =
           document.getElementById(
@@ -1360,47 +1438,108 @@ async function openScanner(mode) {
           );
 
         if (input) {
+
           input.value = code;
+
+          /*
+            فوکوس روی فیلد
+          */
+
+          input.focus();
         }
+
+        /*
+          جستجوی خودکار کالا
+        */
 
         await searchProduct(
           mode,
           code
         );
       },
+
+      /*
+        خطاهای لحظه‌ای اسکن را نادیده می‌گیریم.
+        این خطاها طبیعی هستند تا وقتی بارکد پیدا شود.
+      */
+
       () => {}
+
     );
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "Scanner error:",
+      error
+    );
+
+    scannerLocked = false;
+
+    await closeScanner();
 
     toast(
-      "دسترسی دوربین فعال نیست.",
+      "دسترسی به دوربین امکان‌پذیر نیست.",
       true
     );
   }
 }
 
+
 async function closeScanner() {
 
+  scannerLocked = true;
+
   if (!scanner) {
+
+    document
+      .querySelectorAll(".reader")
+      .forEach(reader => {
+        reader.innerHTML = "";
+      });
+
     return;
   }
 
   try {
-    await scanner.stop();
+
+    /*
+      توقف دوربین
+    */
+
+    if (scanner.isScanning) {
+      await scanner.stop();
+    }
+
   } catch (error) {
-    console.warn(error);
+
+    console.warn(
+      "Scanner stop:",
+      error
+    );
   }
 
   try {
+
+    /*
+      پاک کردن کامل اسکنر
+    */
+
     await scanner.clear();
+
   } catch (error) {
-    console.warn(error);
+
+    console.warn(
+      "Scanner clear:",
+      error
+    );
   }
 
   scanner = null;
+
+  /*
+    پاک کردن صفحه دوربین
+  */
 
   document
     .querySelectorAll(".reader")
