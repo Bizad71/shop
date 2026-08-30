@@ -12,10 +12,6 @@ let profile = null;
 let shop = null;
 let scanner = null;
 
-/* =========================
-   ابزارها
-========================= */
-
 function money(value) {
   return new Intl.NumberFormat("fa-IR").format(Number(value || 0));
 }
@@ -30,42 +26,27 @@ function escapeHTML(value) {
 }
 
 function toast(message, error = false) {
-  const old = document.querySelector(".toast");
-
-  if (old) {
-    old.remove();
-  }
+  document.querySelector(".toast")?.remove();
 
   const box = document.createElement("div");
-
-  box.className = error
-    ? "toast toast-error"
-    : "toast";
-
+  box.className = error ? "toast toast-error" : "toast";
   box.textContent = message;
 
   document.body.appendChild(box);
 
-  setTimeout(() => {
-    if (box.parentNode) {
-      box.remove();
-    }
-  }, 3000);
+  setTimeout(() => box.remove(), 3000);
 }
 
 /* =========================
-   صفحه ورود
+   LOGIN
 ========================= */
 
 function showLogin() {
   app.innerHTML = `
     <div class="login-page">
-
       <div class="login-box">
 
-        <div class="logo">
-          B
-        </div>
+        <div class="logo">B</div>
 
         <h1>BizadShop</h1>
 
@@ -75,9 +56,7 @@ function showLogin() {
 
         <form id="loginForm">
 
-          <label>
-            نام کاربری
-          </label>
+          <label>نام کاربری</label>
 
           <input
             id="username"
@@ -87,9 +66,7 @@ function showLogin() {
             required
           >
 
-          <label>
-            رمز عبور
-          </label>
+          <label>رمز عبور</label>
 
           <input
             id="password"
@@ -114,7 +91,6 @@ function showLogin() {
         </form>
 
       </div>
-
     </div>
   `;
 
@@ -123,34 +99,22 @@ function showLogin() {
     .addEventListener("submit", login);
 }
 
-/* =========================
-   ورود کاربر
-========================= */
-
 async function login(event) {
   event.preventDefault();
 
-  const username = document
-    .getElementById("username")
-    .value
-    .trim();
+  const username =
+    document.getElementById("username").value.trim();
 
-  const password = document
-    .getElementById("password")
-    .value;
+  const password =
+    document.getElementById("password").value;
 
-  const errorBox = document.getElementById("loginError");
+  const errorBox =
+    document.getElementById("loginError");
 
   errorBox.textContent = "";
 
-  if (!username || !password) {
-    errorBox.textContent = "نام کاربری و رمز عبور را وارد کن.";
-    return;
-  }
-
   try {
-
-    const { data: emailData, error: emailError } =
+    const { data, error } =
       await supabase.rpc(
         "get_login_email",
         {
@@ -158,8 +122,8 @@ async function login(event) {
         }
       );
 
-    if (emailError) {
-      console.error("get_login_email:", emailError);
+    if (error) {
+      console.error(error);
 
       errorBox.textContent =
         "خطا در بررسی نام کاربری.";
@@ -167,7 +131,7 @@ async function login(event) {
       return;
     }
 
-    if (!emailData) {
+    if (!data) {
       errorBox.textContent =
         "نام کاربری یا رمز عبور اشتباه است.";
 
@@ -175,25 +139,25 @@ async function login(event) {
     }
 
     const email =
-      typeof emailData === "string"
-        ? emailData
-        : emailData.get_login_email;
+      typeof data === "string"
+        ? data
+        : data?.get_login_email;
 
     if (!email) {
       errorBox.textContent =
-        "ایمیل کاربر پیدا نشد.";
+        "نام کاربری یا رمز عبور اشتباه است.";
 
       return;
     }
 
     const { error: loginError } =
       await supabase.auth.signInWithPassword({
-        email: email,
-        password: password
+        email,
+        password
       });
 
     if (loginError) {
-      console.error("login:", loginError);
+      console.error(loginError);
 
       errorBox.textContent =
         "نام کاربری یا رمز عبور اشتباه است.";
@@ -204,7 +168,6 @@ async function login(event) {
     await loadUser();
 
   } catch (error) {
-
     console.error(error);
 
     errorBox.textContent =
@@ -213,42 +176,45 @@ async function login(event) {
 }
 
 /* =========================
-   دریافت کاربر
+   USER
 ========================= */
 
 async function loadUser() {
-
   try {
-
     const {
       data: userData,
       error: userError
     } = await supabase.auth.getUser();
 
     if (userError || !userData?.user) {
-
       profile = null;
       shop = null;
-
       showLogin();
+      return;
+    }
+
+    const { data, error } =
+      await supabase.rpc(
+        "get_my_user_data"
+      );
+
+    if (error) {
+      console.error(error);
+
+      toast(
+        "خطا در دسترسی به پروفایل: " +
+        error.message,
+        true
+      );
 
       return;
     }
 
-    const user = userData.user;
-
-    const {
-      data: profileData,
-      error: profileError
-    } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-
-      console.error("PROFILE ERROR:", profileError);
+    if (!data) {
+      toast(
+        "پروفایل کاربر یافت نشد.",
+        true
+      );
 
       await supabase.auth.signOut();
 
@@ -257,18 +223,17 @@ async function loadUser() {
 
       showLogin();
 
-      setTimeout(() => {
-        toast(
-          "خطا در دسترسی به پروفایل: " +
-          profileError.message,
-          true
-        );
-      }, 100);
-
       return;
     }
 
-    if (!profileData) {
+    profile = data.profile || null;
+    shop = data.shop || null;
+
+    if (!profile) {
+      toast(
+        "پروفایل کاربر یافت نشد.",
+        true
+      );
 
       await supabase.auth.signOut();
 
@@ -277,137 +242,54 @@ async function loadUser() {
 
       showLogin();
 
-      setTimeout(() => {
-        toast(
-          "پروفایل این کاربر پیدا نشد.",
-          true
-        );
-      }, 100);
-
       return;
     }
 
-    profile = profileData;
-
-    if (!profile.shop_id) {
-
-      await supabase.auth.signOut();
-
-      profile = null;
-      shop = null;
-
-      showLogin();
-
-      setTimeout(() => {
-        toast(
-          "فروشگاه کاربر مشخص نشده است.",
-          true
-        );
-      }, 100);
+    if (!shop) {
+      toast(
+        "فروشگاه کاربر یافت نشد.",
+        true
+      );
 
       return;
     }
-
-    const {
-      data: shopData,
-      error: shopError
-    } = await supabase
-      .from("shops")
-      .select("*")
-      .eq("id", profile.shop_id)
-      .maybeSingle();
-
-    if (shopError) {
-
-      console.error("SHOP ERROR:", shopError);
-
-      await supabase.auth.signOut();
-
-      profile = null;
-      shop = null;
-
-      showLogin();
-
-      setTimeout(() => {
-        toast(
-          "خطا در دسترسی به فروشگاه: " +
-          shopError.message,
-          true
-        );
-      }, 100);
-
-      return;
-    }
-
-    if (!shopData) {
-
-      await supabase.auth.signOut();
-
-      profile = null;
-      shop = null;
-
-      showLogin();
-
-      setTimeout(() => {
-        toast(
-          "فروشگاه کاربر پیدا نشد.",
-          true
-        );
-      }, 100);
-
-      return;
-    }
-
-    shop = shopData;
 
     showHome();
 
   } catch (error) {
+    console.error(error);
 
-    console.error("LOAD USER ERROR:", error);
-
-    profile = null;
-    shop = null;
-
-    showLogin();
-
-    setTimeout(() => {
-      toast(
-        "خطا در بارگذاری اطلاعات کاربر.",
-        true
-      );
-    }, 100);
+    toast(
+      "خطا در بارگذاری اطلاعات کاربر.",
+      true
+    );
   }
 }
 
 /* =========================
-   قالب اصلی
+   LAYOUT
 ========================= */
 
 function layout(content, activePage = "sale") {
-
   app.innerHTML = `
-
     <div class="app">
 
       <header class="header">
 
         <div>
-
           <div class="brand">
             BizadShop
           </div>
 
           <div class="shop-title">
-            ${escapeHTML(shop?.name || "")}
+            ${escapeHTML(shop?.name)}
           </div>
-
         </div>
 
         <div class="header-user">
 
           <span>
-            ${escapeHTML(profile?.username || "")}
+            ${escapeHTML(profile?.username)}
           </span>
 
           <button
@@ -432,9 +314,7 @@ function layout(content, activePage = "sale") {
           class="${activePage === "sale" ? "active" : ""}"
         >
           🛒
-          <span>
-            فروش
-          </span>
+          <span>فروش</span>
         </button>
 
         <button
@@ -442,9 +322,7 @@ function layout(content, activePage = "sale") {
           class="${activePage === "receive" ? "active" : ""}"
         >
           📦
-          <span>
-            ورود کالا
-          </span>
+          <span>ورود کالا</span>
         </button>
 
         <button
@@ -452,9 +330,7 @@ function layout(content, activePage = "sale") {
           class="${activePage === "inventory" ? "active" : ""}"
         >
           📋
-          <span>
-            موجودی
-          </span>
+          <span>موجودی</span>
         </button>
 
       </nav>
@@ -464,27 +340,17 @@ function layout(content, activePage = "sale") {
         class="floating-inventory"
       >
         📦
-        <small>
-          انبار
-        </small>
+        <small>انبار</small>
       </button>
 
     </div>
   `;
 
-  const logoutButton =
-    document.getElementById("logoutButton");
+  document.getElementById("logoutButton").onclick = logout;
 
-  if (logoutButton) {
-    logoutButton.onclick = logout;
-  }
-
-  const inventoryButton =
-    document.getElementById("inventoryButton");
-
-  if (inventoryButton) {
-    inventoryButton.onclick = showReceive;
-  }
+  document
+    .getElementById("inventoryButton")
+    .onclick = showReceive;
 
   document
     .querySelectorAll("[data-page]")
@@ -492,7 +358,8 @@ function layout(content, activePage = "sale") {
 
       button.onclick = () => {
 
-        const page = button.dataset.page;
+        const page =
+          button.dataset.page;
 
         if (page === "sale") {
           showHome();
@@ -505,18 +372,17 @@ function layout(content, activePage = "sale") {
         if (page === "inventory") {
           showInventory();
         }
+
       };
+
     });
 }
 
 /* =========================
-   خروج
+   LOGOUT
 ========================= */
 
 async function logout() {
-
-  await closeScanner();
-
   await supabase.auth.signOut();
 
   profile = null;
@@ -526,13 +392,11 @@ async function logout() {
 }
 
 /* =========================
-   صفحه فروش
+   SALE
 ========================= */
 
 function showHome() {
-
   layout(`
-
     <section class="welcome">
 
       <div>
@@ -617,11 +481,12 @@ function showHome() {
       ></div>
 
     </section>
+  `);
 
-  `, "sale");
-
-  document.getElementById("searchSale").onclick =
-    () => searchProduct("sale");
+  document
+    .getElementById("searchSale")
+    .onclick = () =>
+      searchProduct("sale");
 
   document
     .getElementById("saleBarcode")
@@ -633,15 +498,18 @@ function showHome() {
 
     });
 
-  document.getElementById("scanSale").onclick =
-    () => openScanner("sale");
+  document
+    .getElementById("scanSale")
+    .onclick = () =>
+      openScanner("sale");
 
-  document.getElementById("closeSaleScanner").onclick =
-    () => closeScanner();
+  document
+    .getElementById("closeSaleScanner")
+    .onclick = closeScanner;
 }
 
 /* =========================
-   جستجوی محصول
+   PRODUCT SEARCH
 ========================= */
 
 async function searchProduct(mode, barcode = null) {
@@ -658,7 +526,6 @@ async function searchProduct(mode, barcode = null) {
     input?.value.trim();
 
   if (!code) {
-
     toast(
       "بارکد را وارد کن.",
       true
@@ -667,30 +534,26 @@ async function searchProduct(mode, barcode = null) {
     return;
   }
 
-  const {
-    data,
-    error
-  } = await supabase
-    .from("products")
-    .select(`
-      id,
-      barcode,
-      name,
-      stock,
-      price1,
-      price2
-    `)
-    .eq("barcode", code)
-    .eq("shop_id", shop.id)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from("products")
+      .select(`
+        id,
+        barcode,
+        name,
+        stock,
+        price1,
+        price2
+      `)
+      .eq("shop_id", shop.id)
+      .eq("barcode", code)
+      .maybeSingle();
 
   if (error) {
-
     console.error(error);
 
     toast(
-      "خطا در جستجوی کالا: " +
-      error.message,
+      "خطا در جستجوی کالا.",
       true
     );
 
@@ -699,17 +562,14 @@ async function searchProduct(mode, barcode = null) {
 
   if (!data) {
 
-    if (mode === "receive") {
-
-      showNewProduct(code);
-
-      return;
-    }
-
     toast(
       "کالا پیدا نشد.",
       true
     );
+
+    if (mode === "receive") {
+      showNewProduct(code);
+    }
 
     return;
   }
@@ -722,7 +582,7 @@ async function searchProduct(mode, barcode = null) {
 }
 
 /* =========================
-   کالای فروش
+   SALE PRODUCT
 ========================= */
 
 function showSaleProduct(product) {
@@ -744,28 +604,23 @@ function showSaleProduct(product) {
   }
 
   result.innerHTML = `
-
     <div class="product-box">
 
-      <div class="product-top">
+      <span>
+        بارکد:
+        ${escapeHTML(product.barcode)}
+      </span>
 
-        <span>
-          بارکد:
-          ${escapeHTML(product.barcode)}
-        </span>
+      <h3>
+        ${escapeHTML(product.name)}
+      </h3>
 
-        <h3>
-          ${escapeHTML(product.name)}
-        </h3>
-
-        <p>
-          موجودی:
-          <strong>
-            ${money(product.stock)}
-          </strong>
-        </p>
-
-      </div>
+      <p>
+        موجودی:
+        <strong>
+          ${money(product.stock)}
+        </strong>
+      </p>
 
       <h4>
         انتخاب قیمت
@@ -773,37 +628,29 @@ function showSaleProduct(product) {
 
       <div class="price-options">
 
-        ${
-          prices.length
-            ? prices.map(
-                (price, index) => `
-                  <button
-                    class="price-option ${
-                      index === 0
-                        ? "selected"
-                        : ""
-                    }"
-                    data-price="${price}"
-                  >
+        ${prices.map(
+          (price, index) => `
+            <button
+              class="price-option ${
+                index === 0
+                  ? "selected"
+                  : ""
+              }"
+              data-price="${price}"
+            >
 
-                    <span>
-                      قیمت ${index + 1}
-                    </span>
+              <span>
+                قیمت ${index + 1}
+              </span>
 
-                    <strong>
-                      ${money(price)}
-                      تومان
-                    </strong>
+              <strong>
+                ${money(price)}
+                تومان
+              </strong>
 
-                  </button>
-                `
-              ).join("")
-            : `
-                <p>
-                  برای این کالا قیمتی ثبت نشده است.
-                </p>
-              `
-        }
+            </button>
+          `
+        ).join("")}
 
       </div>
 
@@ -821,7 +668,6 @@ function showSaleProduct(product) {
       <button
         id="confirmSale"
         class="btn-primary full"
-        ${prices.length ? "" : "disabled"}
       >
         ثبت فروش
       </button>
@@ -837,20 +683,24 @@ function showSaleProduct(product) {
 
         document
           .querySelectorAll(".price-option")
-          .forEach(b => {
-            b.classList.remove("selected");
-          });
+          .forEach(b =>
+            b.classList.remove("selected")
+          );
 
         button.classList.add("selected");
       };
+
     });
 
-  document.getElementById("confirmSale").onclick =
-    async () => {
+  document
+    .getElementById("confirmSale")
+    .onclick = async () => {
 
       const quantity =
         Number(
-          document.getElementById("saleQuantity").value
+          document.getElementById(
+            "saleQuantity"
+          ).value
         );
 
       const selected =
@@ -859,7 +709,6 @@ function showSaleProduct(product) {
         );
 
       if (!selected) {
-
         toast(
           "قیمت را انتخاب کن.",
           true
@@ -869,13 +718,14 @@ function showSaleProduct(product) {
       }
 
       const price =
-        Number(selected.dataset.price);
+        Number(
+          selected.dataset.price
+        );
 
       if (
         !Number.isInteger(quantity) ||
         quantity <= 0
       ) {
-
         toast(
           "تعداد صحیح وارد کن.",
           true
@@ -885,7 +735,6 @@ function showSaleProduct(product) {
       }
 
       if (quantity > product.stock) {
-
         toast(
           "موجودی کافی نیست.",
           true
@@ -894,19 +743,17 @@ function showSaleProduct(product) {
         return;
       }
 
-      const {
-        error
-      } = await supabase.rpc(
-        "register_sale",
-        {
-          p_product_id: product.id,
-          p_qty: quantity,
-          p_unit_price: price
-        }
-      );
+      const { error } =
+        await supabase.rpc(
+          "register_sale",
+          {
+            p_product_id: product.id,
+            p_qty: quantity,
+            p_unit_price: price
+          }
+        );
 
       if (error) {
-
         console.error(error);
 
         toast(
@@ -927,13 +774,12 @@ function showSaleProduct(product) {
 }
 
 /* =========================
-   ورود کالا
+   RECEIVE
 ========================= */
 
 function showReceive() {
 
   layout(`
-
     <section class="welcome">
 
       <div>
@@ -1018,11 +864,12 @@ function showReceive() {
       ></div>
 
     </section>
-
   `, "receive");
 
-  document.getElementById("searchReceive").onclick =
-    () => searchProduct("receive");
+  document
+    .getElementById("searchReceive")
+    .onclick = () =>
+      searchProduct("receive");
 
   document
     .getElementById("receiveBarcode")
@@ -1034,15 +881,18 @@ function showReceive() {
 
     });
 
-  document.getElementById("scanReceive").onclick =
-    () => openScanner("receive");
+  document
+    .getElementById("scanReceive")
+    .onclick = () =>
+      openScanner("receive");
 
-  document.getElementById("closeReceiveScanner").onclick =
-    () => closeScanner();
+  document
+    .getElementById("closeReceiveScanner")
+    .onclick = closeScanner;
 }
 
 /* =========================
-   کالای موجود
+   EXISTING PRODUCT
 ========================= */
 
 function showReceiveProduct(product) {
@@ -1051,7 +901,6 @@ function showReceiveProduct(product) {
     document.getElementById("receiveResult");
 
   result.innerHTML = `
-
     <div class="product-box">
 
       <span>
@@ -1089,7 +938,7 @@ function showReceiveProduct(product) {
         id="receivePrice1"
         type="number"
         min="0"
-        value="${product.price1 ?? 0}"
+        value="${product.price1 ?? ""}"
       >
 
       <label>
@@ -1116,21 +965,28 @@ function showReceiveProduct(product) {
     </div>
   `;
 
-  document.getElementById("confirmReceive").onclick =
-    async () => {
+  document
+    .getElementById("confirmReceive")
+    .onclick = async () => {
 
       const quantity =
         Number(
-          document.getElementById("receiveQuantity").value
+          document.getElementById(
+            "receiveQuantity"
+          ).value
         );
 
       const price1 =
         Number(
-          document.getElementById("receivePrice1").value
+          document.getElementById(
+            "receivePrice1"
+          ).value
         );
 
       const price2Value =
-        document.getElementById("receivePrice2").value;
+        document.getElementById(
+          "receivePrice2"
+        ).value;
 
       const price2 =
         price2Value === ""
@@ -1141,7 +997,6 @@ function showReceiveProduct(product) {
         !Number.isInteger(quantity) ||
         quantity <= 0
       ) {
-
         toast(
           "تعداد نامعتبر است.",
           true
@@ -1150,51 +1005,22 @@ function showReceiveProduct(product) {
         return;
       }
 
-      if (
-        !Number.isFinite(price1) ||
-        price1 < 0
-      ) {
-
-        toast(
-          "قیمت اول نامعتبر است.",
-          true
+      const { error } =
+        await supabase.rpc(
+          "receive_stock",
+          {
+            p_product_id: product.id,
+            p_qty: quantity,
+            p_price1: price1,
+            p_price2: price2
+          }
         );
-
-        return;
-      }
-
-      if (
-        price2 !== null &&
-        (!Number.isFinite(price2) || price2 < 0)
-      ) {
-
-        toast(
-          "قیمت دوم نامعتبر است.",
-          true
-        );
-
-        return;
-      }
-
-      const {
-        error
-      } = await supabase.rpc(
-        "receive_stock",
-        {
-          p_product_id: product.id,
-          p_qty: quantity,
-          p_price1: price1,
-          p_price2: price2
-        }
-      );
 
       if (error) {
-
         console.error(error);
 
         toast(
-          error.message ||
-          "ورود کالا انجام نشد.",
+          error.message,
           true
         );
 
@@ -1210,7 +1036,7 @@ function showReceiveProduct(product) {
 }
 
 /* =========================
-   کالای جدید
+   NEW PRODUCT
 ========================= */
 
 function showNewProduct(barcode) {
@@ -1219,7 +1045,6 @@ function showNewProduct(barcode) {
     document.getElementById("receiveResult");
 
   result.innerHTML = `
-
     <div class="product-box">
 
       <span>
@@ -1286,11 +1111,13 @@ function showNewProduct(barcode) {
     </div>
   `;
 
-  document.getElementById("createProduct").onclick =
-    async () => {
+  document
+    .getElementById("createProduct")
+    .onclick = async () => {
 
       const name =
-        document.getElementById("newProductName")
+        document
+          .getElementById("newProductName")
           .value
           .trim();
 
@@ -1318,75 +1145,36 @@ function showNewProduct(barcode) {
           ? null
           : Number(price2Value);
 
-      if (!name) {
-
-        toast(
-          "نام کالا را وارد کن.",
-          true
-        );
-
-        return;
-      }
-
       if (
+        !name ||
         !Number.isInteger(quantity) ||
         quantity <= 0
       ) {
-
         toast(
-          "تعداد نامعتبر است.",
+          "اطلاعات کالا را کامل کن.",
           true
         );
 
         return;
       }
 
-      if (
-        !Number.isFinite(price1) ||
-        price1 < 0
-      ) {
-
-        toast(
-          "قیمت اول را وارد کن.",
-          true
+      const { error } =
+        await supabase.rpc(
+          "create_product_with_stock",
+          {
+            p_barcode: barcode,
+            p_name: name,
+            p_qty: quantity,
+            p_price1: price1,
+            p_price2: price2
+          }
         );
-
-        return;
-      }
-
-      if (
-        price2 !== null &&
-        (!Number.isFinite(price2) || price2 < 0)
-      ) {
-
-        toast(
-          "قیمت دوم نامعتبر است.",
-          true
-        );
-
-        return;
-      }
-
-      const {
-        error
-      } = await supabase.rpc(
-        "create_product_with_stock",
-        {
-          p_barcode: barcode,
-          p_name: name,
-          p_qty: quantity,
-          p_price1: price1,
-          p_price2: price2
-        }
-      );
 
       if (error) {
-
         console.error(error);
 
         toast(
-          error.message ||
-          "ثبت کالا انجام نشد.",
+          error.message,
           true
         );
 
@@ -1402,13 +1190,12 @@ function showNewProduct(barcode) {
 }
 
 /* =========================
-   موجودی
+   INVENTORY
 ========================= */
 
 async function showInventory() {
 
   layout(`
-
     <section class="card">
 
       <div class="card-header">
@@ -1434,41 +1221,37 @@ async function showInventory() {
       </div>
 
     </section>
-
   `, "inventory");
 
-  const {
-    data,
-    error
-  } = await supabase
-    .from("products")
-    .select(`
-      id,
-      name,
-      barcode,
-      stock,
-      price1,
-      price2
-    `)
-    .eq("shop_id", shop.id)
-    .order("name");
+  const { data, error } =
+    await supabase
+      .from("products")
+      .select(`
+        id,
+        name,
+        barcode,
+        stock,
+        price1,
+        price2
+      `)
+      .eq("shop_id", shop.id)
+      .order("name");
 
   const list =
-    document.getElementById("inventoryList");
+    document.getElementById(
+      "inventoryList"
+    );
 
   if (error) {
-
     console.error(error);
 
     list.textContent =
-      "خطا در دریافت موجودی: " +
-      error.message;
+      "خطا در دریافت موجودی.";
 
     return;
   }
 
   if (!data || !data.length) {
-
     list.textContent =
       "هنوز کالایی ثبت نشده.";
 
@@ -1476,61 +1259,54 @@ async function showInventory() {
   }
 
   list.innerHTML =
-    data
-      .map(product => `
+    data.map(product => `
+      <div class="inventory-item">
 
-        <div class="inventory-item">
+        <div>
 
-          <div>
+          <strong>
+            ${escapeHTML(product.name)}
+          </strong>
 
-            <strong>
-              ${escapeHTML(product.name)}
-            </strong>
-
-            <small>
-              ${escapeHTML(product.barcode)}
-            </small>
-
-          </div>
-
-          <div class="stock">
-
-            موجودی:
-            ${money(product.stock)}
-
-          </div>
-
-          <div class="prices">
-
-            ${money(product.price1)}
-
-            ${
-              product.price2 !== null
-                ? `
-                  <br>
-                  ${money(product.price2)}
-                `
-                : ""
-            }
-
-          </div>
+          <small>
+            ${escapeHTML(product.barcode)}
+          </small>
 
         </div>
 
-      `)
-      .join("");
+        <div class="stock">
+          موجودی:
+          ${money(product.stock)}
+        </div>
 
-  document.getElementById("refreshInventory").onclick =
-    showInventory;
+        <div class="prices">
+
+          ${money(product.price1)}
+
+          ${
+            product.price2 !== null
+              ? `
+                <br>
+                ${money(product.price2)}
+              `
+              : ""
+          }
+
+        </div>
+
+      </div>
+    `).join("");
+
+  document
+    .getElementById("refreshInventory")
+    .onclick = showInventory;
 }
 
 /* =========================
-   اسکنر
+   SCANNER
 ========================= */
 
 async function openScanner(mode) {
-
-  await closeScanner();
 
   const section =
     document.getElementById(
@@ -1550,6 +1326,10 @@ async function openScanner(mode) {
       ? "sale-reader"
       : "receive-reader";
 
+  if (scanner) {
+    await closeScanner();
+  }
+
   scanner =
     new Html5Qrcode(readerId);
 
@@ -1568,6 +1348,8 @@ async function openScanner(mode) {
       },
       async decodedText => {
 
+        const code = decodedText;
+
         await closeScanner();
 
         const input =
@@ -1578,12 +1360,12 @@ async function openScanner(mode) {
           );
 
         if (input) {
-          input.value = decodedText;
+          input.value = code;
         }
 
         await searchProduct(
           mode,
-          decodedText
+          code
         );
       },
       () => {}
@@ -1597,8 +1379,6 @@ async function openScanner(mode) {
       "دسترسی دوربین فعال نیست.",
       true
     );
-
-    await closeScanner();
   }
 }
 
@@ -1609,22 +1389,16 @@ async function closeScanner() {
   }
 
   try {
-
-    if (scanner.isScanning) {
-      await scanner.stop();
-    }
-
+    await scanner.stop();
   } catch (error) {
-
-    console.error(error);
-
+    console.warn(error);
   }
 
   try {
-
     await scanner.clear();
-
-  } catch {}
+  } catch (error) {
+    console.warn(error);
+  }
 
   scanner = null;
 
@@ -1636,74 +1410,27 @@ async function closeScanner() {
 }
 
 /* =========================
-   شروع برنامه
+   START
 ========================= */
 
 async function startApp() {
 
-  try {
+  const {
+    data,
+    error
+  } = await supabase.auth.getSession();
 
-    const {
-      data,
-      error
-    } = await supabase.auth.getSession();
-
-    if (error) {
-
-      console.error(error);
-
-      showLogin();
-
-      return;
-    }
-
-    if (data?.session) {
-
-      await loadUser();
-
-    } else {
-
-      showLogin();
-
-    }
-
-  } catch (error) {
-
+  if (error) {
     console.error(error);
+    showLogin();
+    return;
+  }
 
+  if (data?.session) {
+    await loadUser();
+  } else {
     showLogin();
   }
 }
-
-/* =========================
-   تغییر وضعیت ورود
-========================= */
-
-supabase.auth.onAuthStateChange(
-  async (event, session) => {
-
-    if (
-      event === "SIGNED_OUT"
-    ) {
-
-      profile = null;
-      shop = null;
-
-      showLogin();
-
-      return;
-    }
-
-    if (
-      event === "SIGNED_IN" &&
-      session
-    ) {
-
-      if (!profile) {
-        await loadUser();
-      }
-    }
-  }
-);
 
 startApp();
